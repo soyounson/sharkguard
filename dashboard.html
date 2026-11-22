@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>SharkGuard Analysis</title>
+<style>
+/* Layout idea: Apple-black analysis board. Filter bar + KPIs on top, then four linked sections (Season, Activity, Location, Species), then the incident table. Every chart filters every other chart. */
+:root{
+  --bg:#000; --card:#161617; --card-2:#1d1d1f; --ink:#f5f5f7; --muted:#86868b; --line:#2c2c2e; --accent:#2997ff;
+  --c-none:#64d2ff; --c-minor:#ffd60a; --c-major:#ff9f0a; --c-fatal:#ff453a;
+  --font:"Aptos", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-display:"Aptos Display","Aptos", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --radius:20px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 16px 56px}
+header{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+header h1{font-size:clamp(30px,4vw,44px)}
+header p{color:var(--muted);margin:6px 0 0}
+.filters{position:sticky;top:0;z-index:10;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 0;background:rgba(0,0,0,.8);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);margin-bottom:12px}
+.chip{border:0;background:var(--accent);color:#fff;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer}
+.chip::after{content:" ✕";opacity:.8}
+.reset{border:1px solid var(--line);background:none;border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--muted)}
+.hint{color:var(--muted);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:28px}
+.kpi{background:var(--card);border-radius:var(--radius);padding:16px 18px}
+.kpi b{display:block;font:700 clamp(26px,3vw,36px)/1.05 var(--font-display);letter-spacing:-.03em}
+.kpi span{color:var(--muted);font-size:13px}
+.kpi.fatal b{color:var(--c-fatal)}
+h2.sec{font-size:24px;margin:30px 0 12px;display:flex;align-items:baseline;gap:10px}
+h2.sec small{font:400 14px var(--font);color:var(--muted);letter-spacing:0}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.g3{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.card{background:var(--card);border-radius:var(--radius);padding:16px 16px 8px;min-width:0}
+.card h3{font-size:16px}
+.card .hint{margin:2px 0 4px}
+.ch{height:300px}
+.ch.tall{height:460px}
+.ch.short{height:240px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#d2d2d7;margin:4px 0 8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num{white-space:nowrap}
+th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card);cursor:pointer;white-space:nowrap}
+.tbl{max-height:460px;overflow:auto}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+footer{color:var(--muted);font-size:12px;margin-top:28px;line-height:1.5}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.g2,.g3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>SharkGuard Analysis</h1>
+      <p>202 confirmed incidents, California coast, 1950 to Feb 2022. Tap any bar, cell, slice or county to filter everything.</p>
+    </div>
+    <a class="hint" href="index.html" style="color:var(--accent)">← Back to SharkGuard</a>
+  </header>
+  <div class="filters" id="filters"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <h2 class="sec">Season <small>When do incidents happen?</small></h2>
+  <div class="grid g2">
+    <div class="card"><h3>By month</h3><div class="hint">Stacked by injury</div><div class="ch" id="c-month"></div></div>
+    <div class="card"><h3>Month × region</h3><div class="hint">Count of incidents</div><div class="ch" id="c-month-region"></div></div>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>By year</h3><div class="hint">Drag the slider below the chart to pick a range of years</div><div class="ch short" id="c-year"></div></div>
+  </div>
+
+  <h2 class="sec">Sea activities <small>Who meets sharks, and when?</small></h2>
+  <div class="grid g2">
+    <div class="card"><h3>By activity</h3><div class="hint">Stacked by injury</div><div class="ch" id="c-mode"></div></div>
+    <div class="card"><h3>Activity × month</h3><div class="hint">Count of incidents</div><div class="ch" id="c-mode-month"></div></div>
+  </div>
+
+  <h2 class="sec">Location <small>Where along the coast?</small></h2>
+  <div class="grid g3">
+    <div class="card"><h3>Incident map</h3><div class="hint">Pinch or scroll to zoom · dot color = injury</div><div class="ch tall" id="c-map"></div></div>
+    <div class="card"><h3>By county</h3><div class="hint">Islands listed separately</div><div class="ch tall" id="c-county"></div></div>
+  </div>
+
+  <h2 class="sec">Species <small>Which sharks?</small></h2>
+  <div class="grid g2">
+    <div class="card"><h3>Share of incidents</h3><div class="hint">Tap a slice to filter</div><div class="ch" id="c-species"></div></div>
+    <div class="card"><h3>Species × injury</h3><div class="hint">Count of incidents</div><div class="ch" id="c-species-injury"></div></div>
+  </div>
+
+  <h2 class="sec">Incidents <small id="tbl-count"></small></h2>
+  <div class="card"><div class="tbl"><table id="tbl"><thead><tr><th data-k="date">Date ↓</th><th data-k="county">Location</th><th data-k="mode">Activity</th><th data-k="injury">Injury</th><th data-k="species">Species</th><th>Notes</th></tr></thead><tbody></tbody></table></div></div>
+
+  <footer>Data: California Department of Fish and Wildlife, Shark Incident Database (1950 to Feb 2022). Locations are approximate. Regions: North Coast (Del Norte–Sonoma), Bay Area (Marin, San Francisco, San Mateo, Farallones), Central Coast (Santa Cruz, Monterey, San Luis Obispo), South Coast (Santa Barbara to San Diego, plus Channel Islands). Charts: Apache ECharts. Draft v0.1 for review.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>
+(async function(){
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const FONT=css('--font');
+const [data,geo]=await Promise.all([fetch('data/incidents.json').then(r=>r.json()),fetch('data/geo.json').then(r=>r.json())]);
+const REGION_OF=c=>['Del Norte','Humboldt','Mendocino','Sonoma'].includes(c)?'North Coast':['Marin','San Francisco','San Mateo','Island - Farallones'].includes(c)?'Bay Area':['Santa Cruz','Monterey','San Luis Obispo'].includes(c)?'Central Coast':'South Coast';
+const SPG=s=>s==='White'?'White shark':s==='Unknown'?'Unknown':'Other species';
+const INC=data.incidents.map(i=>({...i,region:REGION_OF(i.county),spg:SPG(i.species)}));
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const INJ=['none','minor','major','fatal'], INJL={none:'No injury',minor:'Minor',major:'Major',fatal:'Fatal'};
+const INJC=k=>css('--c-'+k);
+const REG=['North Coast','Bay Area','Central Coast','South Coast'];
+const MODES=['Surfing / Boarding','Freediving','Kayaking / Canoeing','Swimming','Scuba Diving','Hookah Diving','Paddleboarding'];
+const MODEL={'Surfing / Boarding':'Surfing','Freediving':'Freediving','Kayaking / Canoeing':'Kayaking','Swimming':'Swimming','Scuba Diving':'Scuba','Hookah Diving':'Hookah','Paddleboarding':'Paddleboard'};
+const SPGS=['White shark','Unknown','Other species'];
+const SPC={'White shark':'#e8eef2','Unknown':'#86868b','Other species':'#bf5af2'};
+
+// ---------- cross-filter state ----------
+const F={}; // dim -> value
+const DIMS={month:{label:'Month',fmt:v=>MS[v-1]},region:{label:'Region'},mode:{label:'Activity',fmt:v=>MODEL[v]},county:{label:'County'},spg:{label:'Species'},injury:{label:'Injury',fmt:v=>INJL[v]}};
+let years=[1950,2022];
+const pass=(i,skip=[])=>i.year>=years[0]&&i.year<=years[1]&&Object.entries(F).every(([k,v])=>[].concat(skip).includes(k)||i[k]===v);
+const rows=(...skip)=>INC.filter(i=>pass(i,skip));
+function toggle(dim,val){ if(F[dim]===val) delete F[dim]; else F[dim]=val; render(); }
+
+// ---------- charts ----------
+const ids=['c-month','c-month-region','c-year','c-mode','c-mode-month','c-map','c-county','c-species','c-species-injury'];
+const C={}; ids.forEach(id=>C[id]=echarts.init(document.getElementById(id),null,{renderer:'canvas'}));
+addEventListener('resize',()=>Object.values(C).forEach(c=>c.resize()));
+echarts.registerMap('ca',geo);
+const TT={backgroundColor:'#f5f5f7',borderWidth:0,textStyle:{color:'#000',fontFamily:FONT,fontSize:12}};
+const AX={axisLine:{lineStyle:{color:'#3a3a3c'}},axisTick:{show:false},axisLabel:{color:'#a1a1a6',fontFamily:FONT,fontSize:11},splitLine:{lineStyle:{color:'#2c2c2e'}}};
+const dim=(on,v)=>on===undefined||on===v?1:.25;
+const count=(list,fn)=>list.filter(fn).length;
+function stackedInjury(list,cats,key,horizontal,sel){
+  return INJ.map(k=>({name:INJL[k],type:'bar',stack:'s',barMaxWidth:horizontal?22:26,itemStyle:{color:INJC(k),borderRadius:0},
+    emphasis:{focus:'series'},data:cats.map(c=>({value:count(list,i=>i[key]===c&&i.injury===k),itemStyle:{opacity:dim(sel,c)*(F.injury&&F.injury!==k?.25:1)}})),
+    label:{show:false}}));
+}
+function heat(list,xs,ys,xk,yk,xl,yl,selX,selY){
+  const pts=[]; let max=1;
+  ys.forEach((y,yi)=>xs.forEach((x,xi)=>{const v=count(list,i=>i[xk]===x&&i[yk]===y); max=Math.max(max,v); pts.push([xi,yi,v]);}));
+  return {tooltip:{...TT,formatter:p=>`${yl[p.value[1]]} · ${xl[p.value[0]]}<br><b>${p.value[2]}</b> incidents`},
+    grid:{left:96,right:8,top:6,bottom:26},xAxis:{type:'category',data:xl,...AX,splitLine:{show:false}},yAxis:{type:'category',data:yl,...AX,splitLine:{show:false}},
+    visualMap:{show:false,min:0,max,inRange:{color:['#1d1d1f','#3b2a10','#ff9f0a','#ff453a']}},
+    series:[{type:'heatmap',data:pts.map(p=>({value:p,itemStyle:{borderColor:'#161617',borderWidth:2,borderRadius:4,opacity:(selX===undefined||xs[p[0]]===selX)&&(selY===undefined||ys[p[1]]===selY)?1:.3}})),
+      label:{show:true,fontFamily:FONT,fontSize:10,color:'#f5f5f7',formatter:p=>p.value[2]||''}}]};
+}
+
+function render(){
+  // filter chips
+  const fe=document.getElementById('filters');
+  const chips=Object.entries(F).map(([k,v])=>`<button class="chip" data-k="${k}">${DIMS[k].label}: ${DIMS[k].fmt?DIMS[k].fmt(v):v}</button>`);
+  if(years[0]!==1950||years[1]!==2022) chips.push(`<button class="chip" data-k="years">Years: ${years[0]}–${years[1]}</button>`);
+  fe.innerHTML=chips.length?chips.join('')+'<button class="reset" id="reset">Clear all</button>':'<span class="hint">No filters. Tap any chart to filter.</span>';
+  fe.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{if(b.dataset.k==='years'){years=[1950,2022];}else delete F[b.dataset.k]; render();});
+  const rs=document.getElementById('reset'); if(rs) rs.onclick=()=>{Object.keys(F).forEach(k=>delete F[k]);years=[1950,2022];render();};
+
+  // KPIs
+  const all=rows(), n=all.length, span=years[1]-years[0]+1;
+  const k=[[n,'incidents'],[count(all,i=>i.injury==='fatal'),'fatal','fatal'],[n?Math.round(count(all,i=>i.injury==='none')/n*100)+'%':'—','no injury'],
+    [n?Math.round(count(all,i=>i.species==='White')/n*100)+'%':'—','white shark'],[(n/span).toFixed(1),'per year in range']];
+  document.getElementById('kpis').innerHTML=k.map(([v,l,c])=>`<div class="kpi ${c||''}"><b class="num">${v}</b><span>${l}</span></div>`).join('');
+
+  const legend={show:true,top:0,right:0,itemWidth:10,itemHeight:10,icon:'circle',textStyle:{color:'#d2d2d7',fontFamily:FONT,fontSize:11}};
+  // month
+  C['c-month'].setOption({tooltip:{...TT,trigger:'axis',axisPointer:{type:'shadow'}},legend,grid:{left:30,right:6,top:30,bottom:24},
+    xAxis:{type:'category',data:MS,...AX,splitLine:{show:false}},yAxis:{type:'value',...AX,minInterval:1},
+    series:stackedInjury(rows('month'),[1,2,3,4,5,6,7,8,9,10,11,12],'month',false,F.month)},true);
+  // month x region
+  C['c-month-region'].setOption(heat(rows('month','region'),
+    [1,2,3,4,5,6,7,8,9,10,11,12],REG,'month','region',MS,REG,F.month,F.region),true);
+  // year
+  const yrs=[]; for(let y=1950;y<=2022;y++) yrs.push(y);
+  const yl=INC.filter(i=>Object.entries(F).every(([k,v])=>i[k]===v));
+  C['c-year'].setOption({tooltip:{...TT,trigger:'axis',axisPointer:{type:'shadow'}},grid:{left:30,right:10,top:10,bottom:58},
+    xAxis:{type:'category',data:yrs,...AX,splitLine:{show:false}},yAxis:{type:'value',...AX,minInterval:1},
+    dataZoom:[{type:'slider',bottom:6,height:20,startValue:years[0]-1950,endValue:years[1]-1950,borderColor:'#3a3a3c',fillerColor:'rgba(41,151,255,.18)',handleStyle:{color:'#2997ff'},textStyle:{color:'#a1a1a6'},dataBackground:{lineStyle:{color:'#3a3a3c'},areaStyle:{color:'#2c2c2e'}}}],
+    series:INJ.map(k=>({name:INJL[k],type:'bar',stack:'s',itemStyle:{color:INJC(k)},data:yrs.map(y=>count(yl,i=>i.year===y&&i.injury===k))}))},true);
+  // activity
+  const mr=MODES.slice().reverse();
+  C['c-mode'].setOption({tooltip:{...TT,trigger:'axis',axisPointer:{type:'shadow'}},legend,grid:{left:84,right:10,top:30,bottom:20},
+    yAxis:{type:'category',data:mr.map(m=>MODEL[m]),...AX,splitLine:{show:false}},xAxis:{type:'value',...AX,minInterval:1},
+    series:stackedInjury(rows('mode'),mr,'mode',true,F.mode)},true);
+  // activity x month
+  C['c-mode-month'].setOption(heat(rows('mode','month'),[1,2,3,4,5,6,7,8,9,10,11,12],mr,'month','mode',MS,mr.map(m=>MODEL[m]),F.month,F.mode),true);
+  // map
+  C['c-map'].setOption({tooltip:{...TT,formatter:p=>p.data?`<b>${p.data.i.date}</b> · ${MODEL[p.data.i.mode]}<br>${INJL[p.data.i.injury]} · ${p.data.i.spg}<br>${p.data.i.location}`:''},
+    geo:{map:'ca',roam:true,boundingCoords:[[-125.2,42.2],[-116.6,32.3]],scaleLimit:{min:1,max:40},itemStyle:{areaColor:'#1d1d1f',borderColor:'#3a3a3c'},emphasis:{disabled:true},label:{show:false},select:{disabled:true}},
+    series:[{type:'scatter',coordinateSystem:'geo',symbolSize:7,data:all.map(i=>({value:[i.lon,i.lat],i,itemStyle:{color:INJC(i.injury),borderColor:'#000',borderWidth:.6}}))}]},true);
+  // county
+  const cr=rows('county'), cs=[...new Set(INC.map(i=>i.county))].map(c=>[c,count(cr,i=>i.county===c)]).sort((a,b)=>a[1]-b[1]);
+  C['c-county'].setOption({tooltip:{...TT,trigger:'axis',axisPointer:{type:'shadow'}},grid:{left:130,right:28,top:6,bottom:16},
+    yAxis:{type:'category',data:cs.map(c=>c[0].replace('Island - ','Isl. ')),...AX,splitLine:{show:false}},xAxis:{type:'value',...AX,minInterval:1},
+    series:[{type:'bar',barMaxWidth:14,data:cs.map(c=>({value:c[1],itemStyle:{color:'#2997ff',borderRadius:[0,4,4,0],opacity:dim(F.county,c[0])}})),label:{show:true,position:'right',color:'#a1a1a6',fontSize:10,fontFamily:FONT}}]},true);
+  // species
+  const sr=rows('spg');
+  C['c-species'].setOption({tooltip:{...TT,formatter:p=>`${p.name}: <b>${p.value}</b> (${p.percent}%)`},
+    series:[{type:'pie',radius:['52%','78%'],itemStyle:{borderColor:'#161617',borderWidth:3,borderRadius:6},
+      label:{color:'#d2d2d7',fontFamily:FONT,formatter:'{b}\n{c}'},
+      data:SPGS.map(g=>({name:g,value:count(sr,i=>i.spg===g),itemStyle:{color:SPC[g],opacity:dim(F.spg,g)}}))}]},true);
+  // species x injury
+  const si=rows('spg');
+  C['c-species-injury'].setOption({tooltip:{...TT,trigger:'axis',axisPointer:{type:'shadow'}},legend,grid:{left:96,right:10,top:30,bottom:20},
+    yAxis:{type:'category',data:SPGS.slice().reverse(),...AX,splitLine:{show:false}},xAxis:{type:'value',...AX,minInterval:1},
+    series:stackedInjury(si,SPGS.slice().reverse(),'spg',true,F.spg)},true);
+  // table
+  renderTable(all);
+}
+
+// clicks → filters
+C['c-month'].on('click',p=>toggle('month',p.dataIndex+1));
+C['c-month-region'].on('click',p=>{const m=p.value[0]+1,r=REG[p.value[1]]; if(F.month===m&&F.region===r){delete F.month;delete F.region;}else{F.month=m;F.region=r;} render();});
+C['c-mode'].on('click',p=>toggle('mode',MODES.slice().reverse()[p.dataIndex]));
+C['c-mode-month'].on('click',p=>{const m=p.value[0]+1,md=MODES.slice().reverse()[p.value[1]]; if(F.month===m&&F.mode===md){delete F.month;delete F.mode;}else{F.month=m;F.mode=md;} render();});
+C['c-county'].on('click',p=>toggle('county',[...new Set(INC.map(i=>i.county))].map(c=>[c,count(rows('county'),i=>i.county===c)]).sort((a,b)=>a[1]-b[1])[p.dataIndex][0]));
+C['c-species'].on('click',p=>toggle('spg',p.name));
+C['c-species-injury'].on('click',p=>toggle('injury',INJ[p.seriesIndex]));
+[ 'c-month','c-mode'].forEach(id=>C[id].on('legendselectchanged',()=>{}));
+let yTimer; C['c-year'].on('datazoom',()=>{const o=C['c-year'].getOption().dataZoom[0]; clearTimeout(yTimer);
+  yTimer=setTimeout(()=>{years=[1950+Math.round(o.startValue??0),1950+Math.round(o.endValue??72)]; render();},250);});
+
+// table
+let sortK='date', sortDir=-1;
+document.querySelectorAll('#tbl th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; sortDir=sortK===k?-sortDir:-1; sortK=k; render();});
+function renderTable(list){
+  const tb=document.querySelector('#tbl tbody'); tb.textContent='';
+  document.getElementById('tbl-count').textContent=`${list.length} shown`;
+  list.slice().sort((a,b)=>String(a[sortK]).localeCompare(String(b[sortK]))*sortDir).forEach(i=>{
+    const tr=document.createElement('tr');
+    const cells=[i.date,`${i.location}, ${i.county}`,MODEL[i.mode],INJL[i.injury],i.species==='White'?'White shark':i.species,i.comment];
+    cells.forEach((v,k)=>{const td=document.createElement('td'); if(k===3){const d=document.createElement('span');d.className='dot';d.style.background=INJC(i.injury);td.appendChild(d);} td.appendChild(document.createTextNode(v||'')); if(k===0) td.className='num'; tr.appendChild(td);});
+    tb.appendChild(tr);});
+  document.querySelectorAll('#tbl th[data-k]').forEach(th=>{th.textContent=th.textContent.replace(/ [↑↓]$/,'')+(th.dataset.k===sortK?(sortDir<0?' ↓':' ↑'):'');});
+}
+render();
+})();
+</script>
+</body>
+</html>

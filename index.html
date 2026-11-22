@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>SharkGuard California</title>
+<style>
+/* Layout idea: Apple product page. Dark underwater 3D opener, then the planner: controls + score memo on the left, a live relief map on the right that follows the season. Follows the OS light/dark theme. */
+:root{
+  --bg:#f5f5f7; --bg-2:#ffffff; --card:#ffffff; --card-2:#f5f5f7; --ink:#1d1d1f; --muted:#6e6e73; --line:#d2d2d7; --accent:#0071e3;
+  --glass:rgba(255,255,255,.72); --glass-line:rgba(0,0,0,.08); --shadow:0 2px 6px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.06);
+  --map-label:#1d1d1f; --map-halo:rgba(255,255,255,.85); --map-border:rgba(29,29,31,.35);
+  --relief-filter:saturate(.9) brightness(1.05);
+  --c-none:#32ade6; --c-minor:#ffcc00; --c-major:#ff9500; --c-fatal:#ff3b30;
+  --s-green:#34c759; --s-yellow:#ffcc00; --s-red:#ff3b30;
+  --font:"Aptos", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-display:"Aptos Display", "Aptos", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --radius:24px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#000; --bg-2:#000; --card:#161617; --card-2:#1d1d1f; --ink:#f5f5f7; --muted:#86868b; --line:#2c2c2e; --accent:#2997ff;
+    --glass:rgba(29,29,31,.72); --glass-line:rgba(255,255,255,.08); --shadow:none;
+    --map-label:#f5f5f7; --map-halo:rgba(0,0,0,.7); --map-border:rgba(245,245,247,.25);
+    --relief-filter:brightness(.6) saturate(.8) contrast(1.06);
+    --c-none:#64d2ff; --c-minor:#ffd60a; --c-major:#ff9f0a; --c-fatal:#ff453a;
+    --s-green:#30d158; --s-yellow:#ffd60a; --s-red:#ff453a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000; --bg-2:#000; --card:#161617; --card-2:#1d1d1f; --ink:#f5f5f7; --muted:#86868b; --line:#2c2c2e; --accent:#2997ff;
+  --glass:rgba(29,29,31,.72); --glass-line:rgba(255,255,255,.08); --shadow:none;
+  --map-label:#f5f5f7; --map-halo:rgba(0,0,0,.7); --map-border:rgba(245,245,247,.25);
+  --relief-filter:brightness(.6) saturate(.8) contrast(1.06);
+  --c-none:#64d2ff; --c-minor:#ffd60a; --c-major:#ff9f0a; --c-fatal:#ff453a;
+  --s-green:#30d158; --s-yellow:#ffd60a; --s-red:#ff453a;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.47 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;letter-spacing:-.025em;text-wrap:balance;margin:0}
+.num{font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent);text-decoration:none}
+.emo{width:1.15em;height:1.15em;vertical-align:-.2em}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:30;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 max(16px,calc((100% - 1200px)/2));background:var(--glass);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--glass-line)}
+.brand{font-weight:600;font-size:17px;display:flex;gap:8px;align-items:center}
+.brand i{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#64d2ff,#0a84ff);display:grid;place-items:center}
+.brand i img{width:14px;height:14px}
+.nav-links{display:flex;gap:22px;font-size:13px}
+.nav-links a{color:var(--ink);opacity:.8}
+
+/* hero: always underwater-dark */
+.hero{position:relative;height:min(84vh,820px);min-height:540px;overflow:hidden;background:radial-gradient(ellipse 70% 55% at 50% 62%,#0b2b44 0%,#03111d 45%,#000 75%);color:#f5f5f7}
+#ocean3d{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero-copy{position:relative;z-index:2;text-align:center;padding:clamp(56px,10vh,110px) 20px 0}
+.hero .kicker{color:#64d2ff;font-weight:600;font-size:clamp(17px,2vw,21px);margin-bottom:8px}
+.hero h1{font-size:clamp(44px,7.5vw,88px);line-height:1.04}
+.hero p{font-size:clamp(19px,2.3vw,24px);line-height:1.35;color:#a1a1a6;max-width:34ch;margin:16px auto 0}
+.cta{display:flex;gap:14px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+.btn{border:0;border-radius:980px;padding:12px 22px;font-size:17px;cursor:pointer;background:#0071e3;color:#fff;display:inline-block}
+.hero-foot{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-size:12px;color:#6e6e73;z-index:2}
+
+/* sections */
+section{padding:clamp(56px,8vw,104px) max(16px,calc((100% - 1200px)/2)) 0}
+.s-head{text-align:center;margin-bottom:clamp(24px,4vw,44px)}
+.s-head .kicker{color:var(--muted);font-weight:600;font-size:17px;margin-bottom:6px}
+.s-head h2{font-size:clamp(34px,5vw,56px);line-height:1.07}
+.s-head p{color:var(--muted);font-size:clamp(17px,2vw,21px);max-width:46ch;margin:12px auto 0}
+.card{background:var(--card);border-radius:var(--radius);padding:clamp(18px,2.4vw,26px);box-shadow:var(--shadow)}
+
+/* planner */
+.planner{display:grid;grid-template-columns:minmax(300px,.82fr) minmax(0,1.18fr);gap:16px;align-items:start}
+.col{display:grid;gap:16px;min-width:0}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.field select,.field input{width:100%;background:var(--card-2);border:1px solid var(--line);border-radius:14px;padding:13px 14px;font-size:17px;-webkit-appearance:none;appearance:none;min-height:50px}
+.controls{display:grid;gap:16px}
+.months{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}
+.months button{border:1px solid var(--line);background:var(--card-2);border-radius:999px;padding:7px 0;font-size:13px;cursor:pointer}
+.months button[aria-pressed="true"]{background:var(--ink);color:var(--bg-2);border-color:var(--ink)}
+.tap-hint{font-size:13px;color:var(--muted)}
+
+/* score memo */
+.memo{border-radius:var(--radius);padding:22px 22px 18px;position:relative;overflow:hidden;background:var(--card);box-shadow:var(--shadow)}
+.memo::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--score)}
+.memo-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.memo .kick{font-size:13px;font-weight:600;color:var(--muted)}
+.score{display:flex;align-items:baseline;gap:6px;margin-top:4px}
+.score b{font:700 clamp(56px,7vw,76px)/1 var(--font-display);letter-spacing:-.05em;color:var(--score)}
+.score span{font-size:20px;color:var(--muted);font-weight:600}
+.level{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:17px;padding:7px 14px;border-radius:999px;background:color-mix(in srgb,var(--score) 16%,transparent);color:var(--ink);white-space:nowrap}
+.level i{width:10px;height:10px;border-radius:50%;background:var(--score)}
+.scale{position:relative;height:8px;border-radius:999px;margin:16px 0 4px;background:linear-gradient(90deg,var(--s-green) 0 50%,var(--s-yellow) 50% 75%,var(--s-red) 75% 100%)}
+.scale i{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--card);border:3px solid var(--ink);transform:translate(-50%,-50%);transition:left .5s cubic-bezier(.2,.8,.2,1)}
+.scale-l{position:relative;height:14px;font-size:11px;color:var(--muted)}
+.scale-l span{position:absolute;transform:translateX(-50%)}
+.scale-l span:first-child{transform:none}.scale-l span:last-child{transform:translateX(-100%)}
+.memo ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:10px}
+.memo li{display:grid;grid-template-columns:24px 1fr;gap:8px;font-size:15px;line-height:1.4}
+.memo li img{width:20px;height:20px;margin-top:1px}
+.fine{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.45}
+.ec{height:96px;margin:4px -4px 0}
+.inc{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.inc:last-child{border-bottom:0}
+.inc .ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;border:2px solid;position:relative}
+.inc .ico img{width:20px;height:20px}
+.inc .ico .sp{position:absolute;right:-6px;bottom:-5px;width:16px;height:16px}
+.inc .t{font-size:15px}
+.inc .m{font-size:13px;color:var(--muted)}
+.inc .d{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap}
+.tag{font-size:11px;color:#000;background:var(--c-minor);border-radius:999px;padding:2px 7px;margin-left:6px;vertical-align:1px}
+.near-list{max-height:340px;overflow:auto}
+.card h3{font-size:19px}
+.sub{color:var(--muted);font-size:14px;margin:2px 0 8px}
+
+/* map */
+.map-card{padding:0;overflow:hidden;position:sticky;top:60px}
+.map-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+.seg{display:inline-flex;background:var(--card-2);border-radius:12px;padding:3px;gap:2px}
+.seg button{border:0;background:none;border-radius:9px;padding:6px 11px;font-size:13px;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.15);font-weight:600}
+.play{border:0;background:var(--ink);color:var(--bg-2);border-radius:999px;width:32px;height:32px;cursor:pointer;font-size:12px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;border-bottom:1px solid var(--line);align-items:center}
+.filters .lab{font-size:12px;color:var(--muted);font-weight:600;margin-right:2px}
+.fchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 10px 5px 7px;font-size:13px;cursor:pointer}
+.fchip img{width:16px;height:16px}
+.fchip i{width:10px;height:10px;border-radius:50%}
+.fchip[aria-pressed="false"]{opacity:.38}
+.fchip[aria-pressed="false"] img{filter:grayscale(1)}
+.sep{width:1px;height:20px;background:var(--line);margin:0 6px}
+.map-box{position:relative;touch-action:none;background:#0b3a66}
+#map{display:block;width:100%;height:auto;cursor:grab}
+.relief{filter:var(--relief-filter)}
+.m-label{fill:var(--map-label);stroke:var(--map-halo);stroke-width:3px;paint-order:stroke;font:500 11px var(--font)}
+.m-border{fill:none;stroke:var(--map-border)}
+.zoom{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-line);border-radius:12px;overflow:hidden}
+.zoom button{border:0;background:none;width:36px;height:36px;cursor:pointer;font-size:19px}
+.zoom button+button{border-top:1px solid var(--glass-line)}
+.season-pill{position:absolute;left:12px;top:12px;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-line);border-radius:999px;padding:7px 14px 7px 10px;font-size:14px;font-weight:600;display:flex;gap:8px;align-items:center}
+.season-pill img{width:20px;height:20px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;padding:12px 16px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%}
+.legend img{width:15px;height:15px}
+.tipbox{position:absolute;pointer-events:none;background:var(--card);color:var(--ink);box-shadow:0 6px 24px rgba(0,0,0,.25);padding:9px 11px;border-radius:12px;font-size:13px;line-height:1.4;max-width:250px;opacity:0;transition:opacity .12s;z-index:5}
+
+/* insights */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.tile{background:var(--card);border-radius:var(--radius);padding:28px 26px;box-shadow:var(--shadow)}
+.tile .big{display:inline-block;font:700 clamp(44px,5vw,64px)/1 var(--font-display);letter-spacing:-.04em;background-image:linear-gradient(90deg,#32ade6,#0071e3);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tile.warm .big{background-image:linear-gradient(90deg,#ffcc00,#ff9500)}
+.tile.calm .big{background-image:linear-gradient(90deg,#34c759,#32ade6)}
+.tile p{color:var(--muted);margin:14px 0 0;font-size:17px}
+footer{padding:64px max(16px,calc((100% - 1200px)/2)) 48px;color:var(--muted);font-size:12px;line-height:1.5}
+footer .rule{border-top:1px solid var(--line);padding-top:16px;display:grid;gap:8px}
+footer strong{color:var(--ink)}
+
+@media (max-width:940px){
+  .planner{grid-template-columns:1fr}
+  .col{display:contents}
+  .map-card{position:relative;top:0;order:2}
+  .controls{order:1}.memo{order:3}#heat-card{order:4}#near-card{order:5}
+  .tiles{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<nav class="nav" aria-label="Main">
+  <div class="brand"><i><img src="assets/emoji/1f988.svg" alt=""></i>SharkGuard</div>
+  <div class="nav-links"><a href="#check">Check a spot</a><a href="#insights">Insights</a></div>
+</nav>
+
+<header class="hero">
+  <canvas id="ocean3d" aria-hidden="true"></canvas>
+  <div class="hero-copy">
+    <div class="kicker">SharkGuard California</div>
+    <h1>Protect your time<br>in the water.</h1>
+    <p>Pick your spot and date. See shark history and a seasonal risk score before you surf, swim, dive or paddle.</p>
+    <div class="cta"><a class="btn" href="#check">Check my spot</a></div>
+  </div>
+  <div class="hero-foot">White shark, rendered live in 3D</div>
+</header>
+
+<section id="check">
+  <div class="s-head">
+    <div class="kicker">Check a spot</div>
+    <h2>Plan before you paddle out.</h2>
+    <p>Choose a beach and a date. Everything updates as you go, and the map follows the season.</p>
+  </div>
+
+  <div class="planner">
+    <div class="col">
+      <div class="card controls">
+        <div class="field"><label for="f-spot">Location</label><select id="f-spot"></select></div>
+        <div class="field"><label for="f-date">Date</label><input type="date" id="f-date">
+          <div class="months" id="months" role="group" aria-label="Jump to a month"></div></div>
+        <div class="tap-hint">Or tap anywhere on the map to check that spot.</div>
+      </div>
+      <div class="memo" id="memo" role="status" aria-live="polite"></div>
+      <div class="card" id="heat-card"><h3>Score through the year</h3><div class="sub">Same spot, every month</div><div class="ec" id="heat"></div></div>
+      <div class="card" id="near-card"><h3>Nearby incidents</h3><div class="sub" id="near-sub"></div><div class="near-list" id="near"></div></div>
+    </div>
+
+    <div class="card map-card" id="map-card">
+      <div class="map-head">
+        <div class="seg" id="season-seg" role="group" aria-label="Season"></div>
+        <button class="play" id="s-play" aria-label="Play through the seasons">▶</button>
+      </div>
+      <div class="filters" id="filters"></div>
+      <div class="map-box" id="map-box">
+        <svg id="map" viewBox="0 0 640 820" role="img" aria-label="Relief map of the California coast with shark incidents and seasonal white shark movement"></svg>
+        <div class="season-pill" id="season-pill"></div>
+        <div class="zoom"><button id="z-in" aria-label="Zoom in">+</button><button id="z-out" aria-label="Zoom out">−</button></div>
+        <div class="tipbox" id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</section>
+
+<section id="insights">
+  <div class="s-head">
+    <div class="kicker">Insights</div>
+    <h2>What the records show since 2000.</h2>
+  </div>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<footer>
+  <div class="rule">
+    <div><strong>For reference only.</strong> SharkGuard shows historical records and general seasonal patterns. It does not predict where sharks are now and does not guarantee your safety. Always follow local beach postings and lifeguard advice.</div>
+    <div>Incidents: California Department of Fish and Wildlife, Shark Incident Database, 2000 to Feb 2022 (111 confirmed incidents). Seasonal patterns: CDFW White Shark Information and white shark tagging research. Shark paths for white, thresher and salmon sharks replay real satellite-tag tracks (TOPP, Tagging of Pacific Predators, 2002–2013, via the U.S. Animal Telemetry Network); leopard, sevengill and hammerhead paths are illustrative. Not live tracking. Incident locations are approximate.</div>
+    <div>Relief map: NASA Blue Marble shaded relief and bathymetry (NASA Earth Observatory, via FreeTiler). Emoji: Twemoji, CC BY 4.0. Built with D3, Apache ECharts and three.js. Risk score is provisional (draft v0.4).</div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(async function(){
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MS=MONTHS.map(m=>m.slice(0,3));
+const EMO=c=>`assets/emoji/${c}.svg`;
+const img=(c,cls='emo')=>`<img class="${cls}" src="${EMO(c)}" alt="">`;
+
+/* ---------------- 3D white shark (three.js) ---------------- */
+(function(){
+  const canvas=document.getElementById('ocean3d');
+  let renderer; try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});}catch(e){return;}
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x000000,.055);
+  const camera=new THREE.PerspectiveCamera(36,1,.1,200); camera.position.set(0,.2,9.5);
+  scene.add(new THREE.HemisphereLight(0x9fd4f0,0x050a10,.75));
+  const key=new THREE.DirectionalLight(0xffffff,1.5); key.position.set(2,7,5); scene.add(key);
+  const rim=new THREE.DirectionalLight(0x46a8ff,1.4); rim.position.set(-5,2,-6); scene.add(rim);
+
+  // marine snow
+  const N=900,pg=new THREE.BufferGeometry(),pp=new Float32Array(N*3);
+  for(let i=0;i<N;i++){pp[i*3]=(Math.random()-.5)*26;pp[i*3+1]=(Math.random()-.5)*12;pp[i*3+2]=-Math.random()*18+5;}
+  pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+  scene.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xbfe6ff,size:.03,transparent:true,opacity:.45,depthWrite:false})));
+  // soft light rays
+  const rc=document.createElement('canvas');rc.width=32;rc.height=256;const rx=rc.getContext('2d');
+  const rg=rx.createLinearGradient(0,0,0,256);rg.addColorStop(0,'rgba(120,200,255,.5)');rg.addColorStop(1,'rgba(120,200,255,0)');rx.fillStyle=rg;rx.fillRect(0,0,32,256);
+  const rays=[];for(let i=0;i<7;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(.6+Math.random(),14),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(rc),transparent:true,opacity:.05,blending:THREE.AdditiveBlending,depthWrite:false}));
+    m.position.set(-7+i*2.3,4.5,-7-Math.random()*4);m.rotation.z=.22;m.userData.p=Math.random()*6;scene.add(m);rays.push(m);}
+
+  // ---- anatomy: smooth lofted body (Catmull-Rom on control stations) ----
+  // u: 0 = snout tip, 1 = caudal peduncle. h = half height, w = half width, c = centerline height.
+  const CP=[ // u,    h,    w,    c
+    [0.000,0.000,0.000,0.020],[0.015,0.055,0.060,0.022],[0.050,0.135,0.140,0.020],[0.110,0.220,0.215,0.012],
+    [0.190,0.300,0.275,0.004],[0.290,0.360,0.315,0.000],[0.400,0.385,0.325,0.000],[0.520,0.360,0.290,0.004],
+    [0.640,0.290,0.225,0.012],[0.760,0.200,0.150,0.022],[0.870,0.120,0.100,0.030],[0.950,0.078,0.085,0.035],[1.000,0.065,0.082,0.036]];
+  const cr=(p0,p1,p2,p3,t)=>.5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);
+  function station(T){ // T in [0, CP.length-1]
+    const i=Math.min(Math.floor(T),CP.length-2),t=T-i,g=k=>CP[Math.max(0,Math.min(CP.length-1,k))];
+    return [0,1,2,3].map(j=>cr(g(i-1)[j],g(i)[j],g(i+1)[j],g(i+2)[j],t));
+  }
+  const LEN=4.0, X0=2.0; // x = X0 - u*LEN, head at +x
+  const S=110,R=48, pos=[],uv=[],idx=[];
+  for(let s=0;s<=S;s++){const [u,h,w,c]=station(s/S*(CP.length-1));
+    for(let r=0;r<=R;r++){const th=r/R*Math.PI*2, sn=Math.sin(th), cs=Math.cos(th);
+      const y=c+Math.max(h,0)*sn*(sn<0?.88:1), z=Math.max(w,0)*cs;
+      pos.push(X0-u*LEN,y,z); uv.push(u,r/R);}}
+  for(let s=0;s<S;s++)for(let r=0;r<R;r++){const a=s*(R+1)+r,b=a+R+1;idx.push(a,b,a+1,b,b+1,a+1);}
+  const body=new THREE.BufferGeometry();
+  body.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  body.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  body.setIndex(idx); body.computeVertexNormals();
+
+  // ---- skin: countershading with a jagged line, gill slits, eye, mouth ----
+  const TW=1024,TH=512,tc=document.createElement('canvas');tc.width=TW;tc.height=TH;
+  const tx=tc.getContext('2d'),img=tx.createImageData(TW,TH),D=img.data;
+  const sm=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+  for(let py=0;py<TH;py++){const v=1-py/TH, th=v*Math.PI*2, s=Math.sin(th), side=Math.cos(th)>=0?1:-1;
+    for(let px=0;px<TW;px++){const u=px/TW;
+      let b=-.10+.045*Math.sin(u*58+side*2.1)+.03*Math.sin(u*163+side)+.02*Math.sin(u*311);
+      if(u<.16) b-= (.16-u)*1.1; if(u>.8) b+= (u-.8)*.5;
+      const dark=sm(b-.02,b+.02,s);
+      let top=[66,78,90]; const deep=sm(.2,1,s); top=top.map((c,k)=>c-deep*[20,22,24][k]);
+      const nz=(Math.random()-.5)*8;
+      let col=[0,1,2].map(k=>[236,237,232][k]*(1-dark)+top[k]*dark+nz);
+      // gill slits (5), both sides
+      for(let g=0;g<5;g++){const ug=.205+g*.017+s*.012; if(Math.abs(u-ug)<.0022&&s>-.42&&s<.30&&Math.abs(Math.cos(th))>.45) col=col.map(c=>c*.45);}
+      // eye
+      const ex=(u-.092)/.009, ey=(s-.30)/.07; if(ex*ex+ey*ey<1) col=[8,9,11]; else if(ex*ex+ey*ey<2.2) col=col.map(c=>c*.7);
+      // mouth line underneath
+      if(u>.045&&u<.15&&Math.abs(s-(-.80+2.6*(u-.045)))<.035&&Math.abs(Math.cos(th))>.25) col=[70,58,62];
+      const o=(py*TW+px)*4; D[o]=col[0];D[o+1]=col[1];D[o+2]=col[2];D[o+3]=255;}}
+  tx.putImageData(img,0,0);
+  const skin=new THREE.CanvasTexture(tc); skin.encoding=THREE.sRGBEncoding; skin.anisotropy=4;
+  // Swimming runs on the GPU: a travelling wave that grows toward the tail, applied in the vertex shader (smooth at the screen's full frame rate).
+  const swimU={uTime:{value:0}};
+  function addSwim(mat){mat.onBeforeCompile=sh=>{sh.uniforms.uTime=swimU.uTime;
+    sh.vertexShader='uniform float uTime;\n'+sh.vertexShader
+     .replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
+      float sx=position.x; float ss=clamp((1.1-sx)/3.3,0.,1.); float sa=.015+.33*ss*ss; float sp=uTime*3.6-sx*1.55;
+      float sdd=-1.55*sa*cos(sp) - (.66*ss/3.3)*sin(sp);
+      objectNormal=normalize(vec3(objectNormal.x - sdd*objectNormal.z, objectNormal.y, objectNormal.z + sdd*objectNormal.x));`)
+     .replace('#include <begin_vertex>',`#include <begin_vertex>
+      transformed.z += sa*sin(sp);`);};}
+  const bodyMat=new THREE.MeshStandardMaterial({map:skin,roughness:.42,metalness:0});
+  const finMat=new THREE.MeshStandardMaterial({color:0x4a5663,roughness:.45,metalness:0,side:THREE.DoubleSide});
+  addSwim(bodyMat); addSwim(finMat);
+
+  // ---- fins: tapered, rounded-edge foils swept back ----
+  function fin(outline,thick,orient){ // thin foil with a gentle camber so light rolls across it
+    const sh=new THREE.Shape(outline.map(p=>new THREE.Vector2(p[0],p[1])));
+    const g=new THREE.ShapeGeometry(sh,24);
+    const span=Math.max(...outline.map(p=>Math.abs(p[1])));
+    const p=g.attributes.position; for(let i=0;i<p.count;i++){const yy=p.getY(i)/span; p.setZ(i,thick*.6*yy*yy);}
+    orient(g); g.computeVertexNormals(); return g;
+  }
+  const finGeos=[
+    // first dorsal: tall triangle, concave trailing edge
+    fin([[.46,0],[.28,.24],[.08,.48],[-.06,.64],[-.13,.63],[-.15,.46],[-.2,.24],[-.3,.06],[-.38,0],[-.2,-.12],[.3,-.12]],.07,g=>g.translate(.18,.33,0)),
+    // second dorsal and anal: small
+    fin([[.07,0],[-.03,.12],[-.1,.13],[-.12,.05],[-.16,0],[-.05,-.06]],.03,g=>g.translate(-1.38,.1,0)),
+    fin([[.07,0],[-.03,-.12],[-.1,-.13],[-.12,-.05],[-.16,0],[-.05,.06]],.03,g=>g.translate(-1.45,-.05,0)),
+    // caudal: lunate, upper lobe slightly longer
+    fin([[.1,.07],[-.04,.3],[-.22,.62],[-.44,.95],[-.52,.98],[-.47,.72],[-.37,.36],[-.27,.04],[-.36,-.28],[-.47,-.62],[-.43,-.68],[-.23,-.42],[-.02,-.13],[.1,-.05]],.05,g=>{g.scale(.78,.78,1);g.translate(-1.9,.035,0);}),
+  ];
+  // pectorals: long, swept back and angled down
+  [1,-1].forEach(sd=>finGeos.push(fin([[.26,0],[.1,.3],[-.14,.62],[-.36,.9],[-.44,.93],[-.42,.82],[-.3,.5],[-.2,.18],[-.2,0],[0,-.1]],.06,g=>{
+    g.rotateX(sd*2.04); g.rotateY(sd*-.28); g.translate(.82,-.16,sd*.2);})));
+  // pelvics
+  [1,-1].forEach(sd=>finGeos.push(fin([[.08,0],[-.06,.18],[-.16,.2],[-.16,.1],[-.12,0]],.03,g=>{g.rotateX(sd*2.2);g.translate(-.72,-.15,sd*.08);})));
+
+  const shark=new THREE.Group(), parts=[];
+  [[body,bodyMat],...finGeos.map(g=>[g,finMat])].forEach(([g,m])=>{shark.add(new THREE.Mesh(g,m));parts.push(g);});
+  shark.scale.setScalar(1.15); scene.add(shark);
+
+  let AMP=4.6;
+  function size(){const r=canvas.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();
+    camera.position.z=r.width<600?12.5:9.5; AMP=Math.min(4.6,camera.aspect*2.6);}
+  addEventListener('resize',size); size();
+  const clock=new THREE.Clock(); const tmp=new THREE.Vector3();
+  function path(s){return new THREE.Vector3(Math.sin(s)*AMP,-1.05+Math.sin(s*2)*.28,-1.8+Math.cos(s)*2.4);}
+  function frame(){
+    const t=reduceMotion?3:clock.getElapsedTime(), s=t*.11+1.2;
+    const p=path(s), q=path(s+.02); shark.position.copy(p);
+    const d=tmp.copy(q).sub(p).normalize();
+    shark.rotation.set(0,Math.atan2(-d.z,d.x),0); shark.rotateZ(Math.asin(d.y)*.9);
+    shark.rotateX(Math.sin(s)*.12); // bank into the turn
+    swimU.uTime.value=t;
+    rays.forEach(m=>m.material.opacity=.035+.035*(.5+.5*Math.sin(t*.4+m.userData.p)));
+    const a=pg.attributes.position.array;for(let i=1;i<a.length;i+=3){a[i]-=.003;if(a[i]<-6)a[i]=6;}pg.attributes.position.needsUpdate=true;
+    camera.lookAt(0,-.4,-1.5); renderer.render(scene,camera);
+    if(!reduceMotion) requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+
+
+/* ---------------- data (2000 onward) ---------------- */
+const [data,geo]=await Promise.all([fetch('data/incidents.json').then(r=>r.json()),fetch('data/geo.json').then(r=>r.json())]);
+const FROM=2000, YEARS=2022+2/12-FROM;
+const INC=data.incidents.filter(i=>i.year>=FROM);
+const CL=data.clusters;
+const INJ=['none','minor','major','fatal'], INJL={none:'No injury',minor:'Minor injury',major:'Major injury',fatal:'Fatal'};
+const injColor=k=>css('--c-'+k);
+const MODES=['Surfing / Boarding','Kayaking / Canoeing','Swimming','Freediving','Paddleboarding','Scuba Diving'];
+const MODEL={'Surfing / Boarding':'Surfing','Freediving':'Freediving','Kayaking / Canoeing':'Kayaking','Swimming':'Swimming','Scuba Diving':'Scuba','Hookah Diving':'Hookah','Paddleboarding':'Paddleboard'};
+const MODE_EMO={'Surfing / Boarding':'1f3c4','Freediving':'1fac1','Kayaking / Canoeing':'1f6f6','Swimming':'1f3ca','Scuba Diving':'1f93f','Hookah Diving':'1fae7','Paddleboarding':'1f6a3'};
+const isWhite=i=>i.species==='White';
+const spGroup=i=>isWhite(i)?'white':i.species==='Unknown'?'unknown':['Leopard','Sevengill'].includes(i.species)?'coastal':'pelagic';
+const spEmo=i=>({white:'shark-white',coastal:'shark-coastal',pelagic:'shark-pelagic',unknown:'2753'})[spGroup(i)];
+const spLabel=i=>isWhite(i)?'White shark':(i.species==='Unknown'?'Species unknown':i.species+' shark ('+(spGroup(i)==='coastal'?'coastal':'offshore')+')');
+const SEASONS=[{k:'winter',n:'Winter',m:[12,1,2],rep:1},{k:'spring',n:'Spring',m:[3,4,5],rep:4},{k:'summer',n:'Summer',m:[6,7,8],rep:7},{k:'fall',n:'Fall',m:[9,10,11],rep:10},{k:'all',n:'All year',m:[1,2,3,4,5,6,7,8,9,10,11,12],rep:null}];
+const seasonOf=m=>SEASONS.find(s=>s.k!=='all'&&s.m.includes(m));
+const SPOTS=[
+  ['Steamer Lane, Santa Cruz',36.951,-122.026],['Ocean Beach, San Francisco',37.760,-122.511],['Salmon Creek, Sonoma',38.352,-123.070],
+  ['Moonstone Beach, Humboldt',41.030,-124.112],['Half Moon Bay',37.495,-122.500],['Monterey, Lovers Point',36.626,-121.915],
+  ['Pismo Beach',35.140,-120.643],['Surf Beach, Lompoc',34.684,-120.604],['Rincon, Santa Barbara',34.373,-119.478],
+  ['Malibu, Surfrider',34.032,-118.678],['Huntington Beach',33.655,-118.003],['San Onofre',33.373,-117.566],['La Jolla Shores',32.858,-117.257]];
+function km(a,b,c,d){const R=6371,t=Math.PI/180,dl=(c-a)*t,dn=(d-b)*t;const h=Math.sin(dl/2)**2+Math.cos(a*t)*Math.cos(c*t)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const inWin=(m,c)=>[(c+10)%12+1,c,c%12+1].includes(m);
+
+/* ---------------- risk score (provisional) ----------------
+   rate λ = incidents within 40 km in the chosen month ±1, 2000–2022, per month per year.
+   score = 100 × √(λ / λmax), where λmax is the highest rate at any incident site in any month. */
+const RADIUS=40;
+const rate=(lat,lon,m)=>INC.filter(i=>inWin(i.month,m)&&km(lat,lon,i.lat,i.lon)<=RADIUS).length/3/YEARS;
+let LMAX=0; CL.forEach(c=>{for(let m=1;m<=12;m++) LMAX=Math.max(LMAX,rate(c.lat,c.lon,m));});
+const scoreOf=(lat,lon,m)=>Math.round(100*Math.sqrt(rate(lat,lon,m)/LMAX));
+const band=s=>s>=75?{n:'Danger',v:'--s-red'}:s>=50?{n:'Caution',v:'--s-yellow'}:{n:'Low',v:'--s-green'};
+
+/* ---------------- state ---------------- */
+const st={lat:SPOTS[0][1],lon:SPOTS[0][2],spot:0,date:new Date(),season:null,modes:new Set(MODES),inj:new Set(INJ)};
+st.season=seasonOf(st.date.getMonth()+1).k;
+const visible=()=>INC.filter(i=>SEASONS.find(s=>s.k===st.season).m.includes(i.month)&&st.modes.has(i.mode)&&st.inj.has(i.injury));
+
+/* ---------------- controls ---------------- */
+const fSpot=document.getElementById('f-spot'), fDate=document.getElementById('f-date'), monthsEl=document.getElementById('months');
+fSpot.innerHTML=SPOTS.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join('')+'<option value="custom">Spot picked on the map</option>';
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+fDate.value=iso(st.date);
+monthsEl.innerHTML=MS.map((m,i)=>`<button type="button" data-m="${i+1}" aria-pressed="false">${m}</button>`).join('');
+fSpot.addEventListener('change',()=>{if(fSpot.value==='custom')return;const s=SPOTS[+fSpot.value];st.lat=s[1];st.lon=s[2];update(true);});
+fDate.addEventListener('change',()=>{const d=new Date(fDate.value+'T12:00:00'); if(!isNaN(d)){st.date=d; st.season=seasonOf(d.getMonth()+1).k; update(false);}});
+monthsEl.addEventListener('click',e=>{const b=e.target.closest('button'); if(!b)return; const d=new Date(st.date); d.setDate(1); d.setMonth(+b.dataset.m-1); d.setDate(Math.min(st.date.getDate(),28));
+  if(d<new Date(new Date().toDateString())) d.setFullYear(d.getFullYear()+1); st.date=d; fDate.value=iso(d); st.season=seasonOf(d.getMonth()+1).k; update(false);});
+
+/* ---------------- map ---------------- */
+const W=640,H=820, svg=d3.select('#map'), box=document.getElementById('map-box'), tip=document.getElementById('tip');
+const proj=d3.geoMercator().fitExtent([[0,0],[W,H]],{type:'MultiPoint',coordinates:[[-126.45,42.95],[-115.45,32.05]]}); // fill the frame with the relief image
+const path=d3.geoPath(proj);
+const gRoot=svg.append('g');
+const RELIEF={w:-126.5625,e:-115.3125,n:43.06888777416961,s:31.952162238024954};
+const [rx0,ry0]=proj([RELIEF.w,RELIEF.n]), [rx1,ry1]=proj([RELIEF.e,RELIEF.s]);
+gRoot.append('image').attr('class','relief').attr('href','assets/relief.jpg').attr('x',rx0).attr('y',ry0).attr('width',rx1-rx0).attr('height',ry1-ry0).attr('preserveAspectRatio','none');
+const gBorder=gRoot.append('g'), gSpot=gRoot.append('g'), gTrail=gRoot.append('g').style('pointer-events','none'), gRings=gRoot.append('g'), gInc=gRoot.append('g'), gShark=gRoot.append('g').style('pointer-events','none'), gLab=gRoot.append('g').style('pointer-events','none');
+gBorder.selectAll('path').data(geo.features.filter(f=>f.properties.name!=='California')).join('path').attr('class','m-border sc').attr('d',path);
+const PLACES=[['San Francisco',-122.42,37.77],['Monterey',-121.89,36.6],['Santa Barbara',-119.7,34.42],['Los Angeles',-118.24,34.05],['San Diego',-117.16,32.72],['Eureka',-124.16,40.8],['Farallon Is.',-123.0,37.7],['Point Conception',-120.47,34.45]];
+const labs=gLab.selectAll('g').data(PLACES).join('g');
+labs.append('circle').attr('r',2.2).attr('fill','var(--map-label)');
+labs.append('text').attr('class','m-label').attr('x',7).attr('y',4).text(d=>d[0]);
+let K=1;
+
+const rScale=n=>5+Math.sqrt(n)*6;
+const pie=d3.pie().value(d=>d.v).sort(null).padAngle(.08);
+const clXY=new Map(CL.map(c=>[c.id,proj([c.lon,c.lat])]));
+function drawRings(){
+  const vis=visible(), by=d3.group(vis,i=>i.cluster);
+  const rows=CL.map(c=>{const items=by.get(c.id)||[];return {...c,items,xy:clXY.get(c.id),counts:INJ.map(k=>({k,v:items.filter(i=>i.injury===k).length})).filter(x=>x.v)};})
+    .filter(c=>c.items.length).sort((a,b)=>b.items.length-a.items.length);
+  const t=svg.transition().duration(reduceMotion?0:600).ease(d3.easeCubicOut);
+  const g=gRings.selectAll('g.ring').data(rows,d=>d.id).join(
+    en=>{const e=en.append('g').attr('class','ring').style('cursor','pointer').attr('opacity',0);
+      e.append('circle').attr('class','bg'); e.append('g').attr('class','arcs'); e.append('text').attr('class','n'); return e;},
+    up=>up, ex=>ex.transition(t).attr('opacity',0).remove());
+  g.transition(t).attr('opacity',1);
+  g.select('circle.bg').transition(t).attr('r',d=>rScale(d.items.length)+2.5).attr('fill','#000').attr('fill-opacity',.55);
+  g.select('g.arcs').each(function(d){const r=rScale(d.items.length),arc=d3.arc().innerRadius(r*.56).outerRadius(r);
+    d3.select(this).selectAll('path').data(pie(d.counts),a=>a.data.k).join('path').attr('fill',a=>injColor(a.data.k)).transition(t).attr('d',arc);});
+  g.select('text.n').text(d=>d.items.length).attr('text-anchor','middle').attr('dy','.36em').attr('fill','#fff')
+    .attr('font-size',d=>Math.max(9,rScale(d.items.length)*.62)).attr('font-weight',700).attr('font-family',css('--font'));
+  g.on('mouseenter',(e,d)=>showTip(e,`<b>${d.name}</b><br>${d.items.length} incident${d.items.length>1?'s':''} · ${SEASONS.find(s=>s.k===st.season).n.toLowerCase()} · tap to zoom in`)).on('mousemove',moveTip).on('mouseleave',hideTip)
+   .on('click',(e,d)=>{e.stopPropagation();zoomTo(d.lat,d.lon,7);});
+  drawIncs(vis); layout();
+}
+function drawIncs(vis){
+  const rows=[]; d3.groups(vis,i=>i.cluster).forEach(([cid,items])=>items.slice().sort((a,b)=>INJ.indexOf(b.injury)-INJ.indexOf(a.injury)).forEach((it,k)=>{const [cx,cy]=clXY.get(cid);rows.push({...it,cx,cy,k});}));
+  const g=gInc.selectAll('g.i').data(rows,d=>d.id).join(en=>{const e=en.append('g').attr('class','i').style('cursor','pointer');
+      e.append('circle').attr('r',12).attr('stroke','#fff').attr('stroke-width',1.6);
+      e.append('image').attr('class','act').attr('x',-8).attr('y',-8).attr('width',16).attr('height',16);
+      e.append('image').attr('class','sp').attr('x',4).attr('y',3).attr('width',13).attr('height',13); return e;});
+  g.select('circle').attr('fill',d=>injColor(d.injury));
+  g.select('image.act').attr('href',d=>EMO(MODE_EMO[d.mode]));
+  g.select('image.sp').attr('href',d=>isWhite(d)?null:EMO(spEmo(d))).style('display',d=>isWhite(d)?'none':null);
+  g.on('mouseenter',(e,d)=>showTip(e,`<b>${d.date}</b> · ${MODEL[d.mode]}<br>${INJL[d.injury]} · ${spLabel(d)}<br>${d.location}`)).on('mousemove',moveTip).on('mouseleave',hideTip)
+   .on('click',e=>e.stopPropagation());
+}
+const spot=gSpot.append('g');
+const spotRing=spot.append('circle').attr('fill','rgba(0,113,227,.10)').attr('stroke','#2997ff').attr('stroke-dasharray','5 5');
+const spotPin=spot.append('g'); spotPin.append('circle').attr('r',8).attr('fill','#0071e3').attr('stroke','#fff').attr('stroke-width',3);
+function layout(){
+  const inv=1/K, zoomed=K>=2.6;
+  gBorder.selectAll('.sc').attr('stroke-width',.8*inv);
+  labs.attr('transform',d=>{const [x,y]=proj([d[1],d[2]]);return `translate(${x},${y}) scale(${inv})`;});
+  gRings.selectAll('g.ring').attr('transform',d=>`translate(${d.xy[0]},${d.xy[1]}) scale(${inv})`).style('display',zoomed?'none':null);
+  gInc.selectAll('g.i').style('display',zoomed?null:'none')
+    .attr('transform',d=>{const r=d.k===0?0:15*Math.sqrt(d.k)+8,a=d.k*2.399;return `translate(${d.cx+Math.cos(a)*r*inv},${d.cy+Math.sin(a)*r*inv}) scale(${inv})`;});
+  const [x,y]=proj([st.lon,st.lat]); spotPin.attr('transform',`translate(${x},${y}) scale(${inv})`);
+  const pxPerKm=Math.abs(y-proj([st.lon,st.lat+1/111.32])[1]);
+  spotRing.attr('cx',x).attr('cy',y).attr('r',pxPerKm*RADIUS).attr('stroke-width',1.6*inv).attr('stroke-dasharray',`${5*inv} ${5*inv}`);
+}
+const zoom=d3.zoom().scaleExtent([1,12]).translateExtent([[0,0],[W,H]]).on('zoom',e=>{K=e.transform.k;gRoot.attr('transform',e.transform);layout();});
+svg.call(zoom).on('dblclick.zoom',null);
+function zoomTo(lat,lon,k){const [x,y]=proj([lon,lat]);svg.transition().duration(reduceMotion?0:900).ease(d3.easeCubicInOut).call(zoom.transform,d3.zoomIdentity.translate(W/2,H/2).scale(k).translate(-x,-y));}
+document.getElementById('z-in').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,1.8);
+document.getElementById('z-out').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,1/1.8);
+svg.on('click',e=>{const t=d3.zoomTransform(svg.node()),[px,py]=d3.pointer(e,svg.node()),[lon,lat]=proj.invert(t.invert([px,py]));
+  st.lat=+lat.toFixed(4); st.lon=+lon.toFixed(4); fSpot.value='custom'; update(false);});
+function showTip(e,h){tip.innerHTML=h;tip.style.opacity=1;moveTip(e);}
+function moveTip(e){const b=box.getBoundingClientRect();tip.style.left=Math.max(8,Math.min(e.clientX-b.left+14,b.width-260))+'px';tip.style.top=(e.clientY-b.top+14)+'px';}
+function hideTip(){tip.style.opacity=0;}
+
+/* season control + filters + legend */
+const seasonSeg=document.getElementById('season-seg');
+seasonSeg.innerHTML=SEASONS.map(s=>`<button data-k="${s.k}" aria-pressed="false">${s.n}</button>`).join('');
+seasonSeg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;st.season=b.dataset.k;renderSeason();});
+let playT=null; const playB=document.getElementById('s-play');
+playB.onclick=()=>{if(playT){clearInterval(playT);playT=null;playB.textContent='▶';return;} playB.textContent='❚❚';
+  const order=['winter','spring','summer','fall']; const step=()=>{const i=order.indexOf(st.season);st.season=order[(i+1)%4];renderSeason();};
+  step(); playT=setInterval(step,3200);};
+const filtersEl=document.getElementById('filters');
+filtersEl.innerHTML=`<span class="lab">Activity</span>`+MODES.map(m=>`<button class="fchip" data-mode="${m}" aria-pressed="true">${img(MODE_EMO[m],'')}${MODEL[m]}</button>`).join('')
+  +`<span class="sep"></span><span class="lab">Injury</span>`+INJ.map(k=>`<button class="fchip" data-inj="${k}" aria-pressed="true"><i style="background:var(--c-${k})"></i>${INJL[k].replace(' injury','')}</button>`).join('');
+filtersEl.addEventListener('click',e=>{const b=e.target.closest('.fchip');if(!b)return;const set=b.dataset.mode?st.modes:st.inj,key=b.dataset.mode||b.dataset.inj;
+  if(set.has(key)&&set.size>1) set.delete(key); else set.add(key); b.setAttribute('aria-pressed',set.has(key)); drawRings();});
+document.getElementById('legend').innerHTML=INJ.map(k=>`<span><i style="background:var(--c-${k})"></i>${INJL[k]}</span>`).join('')
+  +`<span style="flex-basis:100%;height:0"></span><span>${img('shark-white','')}White shark</span><span>${img('shark-coastal','')}Coastal sharks: leopard, sevengill</span><span>${img('shark-pelagic','')}Offshore sharks: thresher, salmon, hammerhead</span><span>${img('2753','')}Species unknown</span><span style="flex-basis:100%">On incidents, a small badge shows the species group (no badge = white shark). Rings group incidents within ~12 km (number = incidents this season); zoom in to see each one. Sharks and their dashed paths follow the season (white = white shark, yellow = coastal, pink = offshore).</span><span id="track-src" style="flex-basis:100%"></span>`;
+function renderSeason(){
+  const s=SEASONS.find(x=>x.k===st.season);
+  seasonSeg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===st.season));
+  const n=visible().length;
+  document.getElementById('season-pill').innerHTML=`${img('1f988','')}${s.n} · ${n} incident${n===1?'':'s'} since 2000`;
+  sharkMonth = s.rep ?? (st.date.getMonth()+1);
+  if(st.season===seasonOf(st.date.getMonth()+1).k) sharkMonth=st.date.getMonth()+1;
+  drawRings();
+}
+
+/* ---------------- seasonal shark movement (illustrative, not tracking) ----------------
+   White sharks: adults gather at central-coast seal and sea lion sites about Aug–Feb, then head far offshore;
+     juveniles use warm Southern California shallows mostly Apr–Oct and move south to Baja in late fall.
+   Coastal sharks (leopard, sevengill): leopard sharks gather in La Jolla/Del Mar shallows late June to early December;
+     sevengills come into La Jolla Cove and Point Loma kelp in spring (Mar–May). Off-season both move to nearby deeper water.
+   Offshore sharks (thresher, salmon, hammerhead): threshers winter off Baja and move north along the coast in spring
+     and summer, while young threshers stay in the Southern California Bight; salmon sharks come south into California
+     waters in winter and spring; smooth hammerheads visit the Bight in warm summers and early fall.
+   Unknown species: shown only where and when unidentified sharks were reported (summer, Southern California). */
+const mix=(o,h,f)=>[o[0]+(h[0]-o[0])*f,o[1]+(h[1]-o[1])*f];
+const tbl=o=>m=>o[m];
+const adultIn=tbl({1:1,2:1,3:.55,4:0,5:0,6:0,7:.45,8:1,9:1,10:1,11:1,12:1});
+const juvIn=tbl({1:0,2:0,3:0,4:.5,5:1,6:1,7:1,8:1,9:1,10:1,11:.5,12:0});
+const leoIn=tbl({1:0,2:0,3:0,4:0,5:0,6:.5,7:1,8:1,9:1,10:1,11:1,12:.5});
+const sevIn=tbl({1:0,2:.5,3:1,4:1,5:1,6:.5,7:0,8:0,9:0,10:0,11:0,12:0});
+const hamIn=tbl({1:0,2:0,3:0,4:0,5:0,6:.5,7:1,8:1,9:1,10:1,11:.5,12:0});
+const unkVis=tbl({1:0,2:0,3:0,4:0,5:.4,6:1,7:1,8:1,9:1,10:1,11:.4,12:0});
+const GROUP={
+  white:{icon:'shark-white',label:'White shark',trail:'#ffffff'},
+  coastal:{icon:'shark-coastal',label:'Coastal sharks · leopard, sevengill',trail:'#ffd60a'},
+  pelagic:{icon:'shark-pelagic',label:'Offshore sharks · thresher, salmon, hammerhead',trail:'#ff6fb5'},
+  unknown:{icon:'2753',label:'Species unknown',trail:'#d1d1d6'}};
+const AG=[];
+[[37.70,-123.00],[37.11,-122.34],[38.23,-122.99],[38.02,-123.05],[36.62,-121.97],[38.31,-123.08],[37.76,-122.62]].forEach((h,i)=>{const o=[h[0]-.6+i*.15,-127.6-i*.35];
+  AG.push({g:'white',sp:'white',size:34,pos:m=>mix(o,h,adultIn(m)),vis:()=>1,wander:1,cruise:.05,turn:.9});});
+[[33.98,-118.52],[34.38,-119.52],[33.67,-118.04],[33.37,-117.57],[32.96,-117.29],[36.96,-121.91]].forEach((h,i)=>{const o=[31.0-i*.12,-116.95-i*.22];
+  AG.push({g:'white',sp:'white',size:24,pos:m=>mix(o,h,juvIn(m)),vis:()=>1,wander:.7,cruise:.04,turn:1.3});});
+[[32.862,-117.258],[32.957,-117.272],[33.985,-118.482],[35.13,-120.648]].forEach(h=>{const o=[h[0]-.04,h[1]-.24];
+  AG.push({g:'coastal',sp:'leopard',size:20,pos:m=>mix(o,h,leoIn(m)),vis:()=>1,wander:.25,cruise:.02,turn:1.6});});
+[[32.851,-117.274],[32.70,-117.275]].forEach(h=>{const o=[h[0]-.06,h[1]-.32];
+  AG.push({g:'coastal',sp:'sevengill',size:22,pos:m=>mix(o,h,sevIn(m)),vis:()=>1,wander:.25,cruise:.02,turn:1.4});});
+const THR=[null,[31.2,-117.3],[31.4,-117.5],[32.4,-117.7],[33.3,-118.7],[34.0,-120.4],[35.5,-121.9],[37.0,-123.0],[38.6,-123.9],[40.2,-124.7],[37.6,-123.4],[34.6,-121.1],[32.2,-117.6]];
+[0,1].forEach(k=>AG.push({g:'pelagic',sp:'thresher',size:22,pos:m=>{const p=THR[m];return [p[0]-k*.35,p[1]-k*.5];},vis:()=>1,wander:1,cruise:.06,turn:.8}));
+[[33.55,-118.25],[33.85,-118.75]].forEach(h=>AG.push({g:'pelagic',sp:'thresher',size:17,pos:()=>h,vis:()=>1,wander:1.3,cruise:.04,turn:1.2}));
+const SAL=[null,[35.6,-122.9],[34.6,-121.4],[34.2,-120.9],[35.2,-122.4],[37.2,-124.0],[39.6,-124.8],[43.6,-125.6],[43.6,-125.6],[43.6,-125.6],[43.6,-125.6],[41.5,-125.2],[38.5,-124.3]];
+AG.push({g:'pelagic',sp:'salmon',size:22,pos:m=>SAL[m],vis:()=>1,wander:1,cruise:.06,turn:.8});
+[[33.02,-118.5],[33.42,-118.36]].forEach((h,i)=>{const o=[30.6-i*.2,-116.8-i*.3];AG.push({g:'pelagic',sp:'hammerhead',size:22,pos:m=>mix(o,h,hamIn(m)),vis:()=>1,wander:.8,cruise:.05,turn:1});});
+[[34.01,-118.50],[34.31,-119.36],[33.31,-117.52],[32.57,-117.15],[36.80,-121.80]].forEach(h=>AG.push({g:'unknown',sp:'unknown',size:16,pos:()=>h,vis:unkVis,wander:.35,cruise:.02,turn:1.5,still:true}));
+
+/* Real tag tracks (data/tracks.json, built by scripts/prepare_tracks.py from ATN / TOPP satellite tags).
+   A species with real tracks replaces its illustrative sharks: each tagged shark replays where it actually was in the chosen month. */
+const REAL=await fetch('data/tracks.json').then(r=>r.ok?r.json():null).catch(()=>null);
+const realSp=new Set((REAL?.tracks||[]).map(t=>t.species));
+for(let i=AG.length-1;i>=0;i--) if(realSp.has(AG[i].sp)) AG.splice(i,1);
+(REAL?.tracks||[]).forEach(t=>{const pts=t.pts.map(([d,la,lo])=>({m:+d.slice(5,7),d,lat:la,lon:lo}));
+  AG.push({g:t.group,sp:t.species,size:t.group==='white'?(t.juvenile?24:32):22,real:true,id:t.id,pts,pos:()=>[pts[0].lat,pts[0].lon],vis:()=>1,prog:Math.random()});});
+let sharkMonth=st.date.getMonth()+1;
+{const el=document.getElementById('track-src'); const names={white:'white shark',leopard:'leopard',sevengill:'sevengill',thresher:'thresher',salmon:'salmon shark',hammerhead:'hammerhead'};
+  const real=[...realSp].map(k=>names[k]||k), sim=Object.keys(names).filter(k=>!realSp.has(k)).map(k=>names[k]);
+  el.textContent=(real.length?`Real satellite-tag paths: ${real.join(', ')} (${REAL.source}). `:'')+(sim.length?`Illustrative paths from published seasonal patterns: ${sim.join(', ')}.`:'');}
+AG.forEach((s,i)=>{const p=s.pos(sharkMonth);s.lat=p[0];s.lon=p[1];s.seed=i*1.37;s.hd=Math.random()*6.28;s.spd=0;s.trail=[];s.lastT=0;s.op=s.vis(sharkMonth);});
+const lineGen=d3.line().curve(d3.curveCatmullRom.alpha(.5));
+const trailSel=gTrail.selectAll('path').data(AG).join('path').attr('fill','none').attr('stroke',d=>GROUP[d.g].trail).attr('stroke-linecap','round');
+const sharkSel=gShark.selectAll('g').data(AG).join('g');
+sharkSel.append('image').attr('href',d=>EMO(GROUP[d.g].icon)).attr('x',d=>-d.size/2).attr('y',d=>-d.size/2).attr('width',d=>d.size).attr('height',d=>d.size);
+const wrapA=a=>Math.atan2(Math.sin(a),Math.cos(a));
+const outOfMap=s=>s.lon<-126.4||s.lat<32.0||s.lat>42.4;
+let tPrev=performance.now();
+function sharkFrame(now){
+  const dt=Math.max(0,Math.min(.05,(now-tPrev)/1000)); tPrev=now; const t=now/1000;
+  AG.forEach(s=>{
+    if(s.real){ // replay this tag's real positions for the chosen month (longest run of consecutive days in that month)
+      if(s.segM!==sharkMonth){s.segM=sharkMonth; const runs=[];let cur=[];
+        s.pts.forEach((p,k)=>{if(p.m===sharkMonth){if(cur.length&&(new Date(p.d)-new Date(cur[cur.length-1].d))>4*864e5){runs.push(cur);cur=[];}cur.push(p);}else if(cur.length){runs.push(cur);cur=[];}});
+        if(cur.length)runs.push(cur); s.seg=runs.sort((a,b)=>b.length-a.length)[0]||[]; s.prog=0;}
+      const seg=s.seg, n=seg.length;
+      if(n>1){s.prog=(s.prog+dt/Math.max(8,n*.6))%1; const f=s.prog*(n-1), k=Math.floor(f), u=f-k, a=seg[k], b=seg[Math.min(n-1,k+1)];
+        const la=a.lat+(b.lat-a.lat)*u, lo=a.lon+(b.lon-a.lon)*u;
+        const want=Math.atan2(la-s.lat,(lo-s.lon)*Math.cos(la*Math.PI/180)); if(Math.hypot(la-s.lat,lo-s.lon)>1e-6) s.hd+=wrapA(want-s.hd)*Math.min(1,dt*6);
+        s.lat=la; s.lon=lo; s.trail=seg.slice(0,k+1).map(p=>[p.lon,p.lat]);}
+      else if(n===1){s.lat=seg[0].lat;s.lon=seg[0].lon;s.trail=[];}
+      s.op+=((n&&!outOfMap(s)?1:0)-s.op)*Math.min(1,dt*1.5);
+      return;
+    }
+    const p=s.pos(sharkMonth), w=s.wander;
+    const tl=p[0]+w*(.09*Math.sin(t*.11+s.seed)+.04*Math.sin(t*.23+s.seed*2));
+    const tn=p[1]+w*(.12*Math.cos(t*.09+s.seed)+.05*Math.cos(t*.21+s.seed*3));
+    const kx=Math.cos(s.lat*Math.PI/180), dx=(tn-s.lon)*kx, dy=tl-s.lat, dist=Math.hypot(dx,dy);
+    const turn=wrapA(Math.atan2(dy,dx)-s.hd);
+    s.hd+=Math.max(-1,Math.min(1,turn))*dt*s.turn;
+    const cruise=s.cruise*(1+.25*Math.sin(t*.7+s.seed));
+    s.spd+=(Math.min(.6,Math.max(cruise,dist*.4))*Math.max(.25,Math.cos(turn))-s.spd)*Math.min(1,dt*1.5);
+    s.lon+=Math.cos(s.hd)*s.spd*dt/kx; s.lat+=Math.sin(s.hd)*s.spd*dt;
+    s.op+=((outOfMap(s)?0:s.vis(sharkMonth))-s.op)*Math.min(1,dt*1.2);
+    if(t-s.lastT>.16){s.trail.push([s.lon,s.lat]);s.lastT=t;if(s.trail.length>80)s.trail.shift();}
+  });
+  const inv=1/K;
+  trailSel.attr('d',s=>s.trail.length>1?lineGen([...s.trail,[s.lon,s.lat]].map(p=>proj(p))):null).attr('stroke-width',s=>(s.g==='white'?2:1.6)*inv).attr('stroke-dasharray',`${3*inv} ${4*inv}`).attr('stroke-opacity',s=>.75*s.op);
+  sharkSel.attr('transform',s=>{const [x,y]=proj([s.lon,s.lat]);
+      if(s.still) return `translate(${x},${y}) scale(${inv})`;
+      const deg=-s.hd*180/Math.PI,right=Math.cos(s.hd)>0;
+      return `translate(${x},${y}) rotate(${right?deg:deg+180}) scale(${right?-inv:inv},${inv})`;})
+    .attr('opacity',s=>s.op);
+  if(!reduceMotion) requestAnimationFrame(sharkFrame);
+}
+requestAnimationFrame(sharkFrame); if(reduceMotion) setTimeout(()=>sharkFrame(performance.now()),60);
+
+/* ---------------- planner output ---------------- */
+const heat=echarts.init(document.getElementById('heat'));
+addEventListener('resize',()=>heat.resize());
+function update(zoom){
+  const m=st.date.getMonth()+1, sc=scoreOf(st.lat,st.lon,m), b=band(sc);
+  monthsEl.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',+x.dataset.m===m));
+  const near=INC.map(i=>({...i,dist:km(st.lat,st.lon,i.lat,i.lon)})).filter(i=>i.dist<=RADIUS);
+  const seasonN=near.filter(i=>inWin(i.month,m)).length;
+  const win=`${MS[(m+10)%12]}–${MS[m%12]}`;
+  const items=[];
+  if(st.lat>=34.45&&[8,9,10,11,12,1,2].includes(m)) items.push(['26a0','<b>Adult white shark season</b> on this coast, Aug–Feb.']);
+  else if(st.lat<34.6&&[5,6,7,8,9,10].includes(m)) items.push(['26a0','<b>Young white sharks</b> use these warm shallows in summer.']);
+  if([8,9,10].includes(m)) items.push(['1f525','<b>Peak months</b> statewide: Aug–Oct.']);
+  items.push(['1f9ad','Sharks can mistake people for seals. Be alert near seals and sea lions.']);
+  items.push(['1f6a9','Check beach postings and lifeguards first.']);
+  const memo=document.getElementById('memo'); memo.style.setProperty('--score',`var(${b.v})`);
+  const place=fSpot.value==='custom'?`${st.lat.toFixed(3)}, ${st.lon.toFixed(3)}`:SPOTS[+fSpot.value][0];
+  memo.innerHTML=`<div class="memo-top"><div><div class="kick">⚠︎ Heads up · ${MONTHS[m-1]} · ${place}</div>
+      <div class="score"><b class="num">${sc}</b><span>/ 100</span></div></div>
+      <span class="level"><i></i>${b.n}</span></div>
+    <div class="scale" aria-hidden="true"><i style="left:${sc}%"></i></div><div class="scale-l"><span style="left:0">0</span><span style="left:50%">50</span><span style="left:75%">75</span><span style="left:100%">100</span></div>
+    <ul>${items.map(([e,t])=>`<li>${img(e,'')}<span>${t}</span></li>`).join('')}</ul>
+    <div class="fine">${seasonN} incident${seasonN===1?'':'s'} within ${RADIUS} km in ${win}, 2000–2022, compared with the busiest spot and season on the coast. 0–49 green, 50–74 yellow, 75–100 red. Provisional score.</div>`;
+  // score by month (Apache ECharts)
+  const scores=d3.range(1,13).map(k=>scoreOf(st.lat,st.lon,k));
+  heat.setOption({animation:false,grid:{left:4,right:4,top:4,bottom:22},
+    xAxis:{type:'category',data:MS.map(s=>s[0]),axisLine:{show:false},axisTick:{show:false},axisLabel:{interval:0,color:css('--muted'),fontFamily:css('--font'),fontSize:11,formatter:(v,i)=>i+1===m?`{b|${MS[i]}}`:v,rich:{b:{color:css('--ink'),fontWeight:700}}}},
+    yAxis:{type:'category',data:[''],show:false},
+    tooltip:{backgroundColor:css('--card'),borderWidth:0,textStyle:{color:css('--ink'),fontFamily:css('--font')},formatter:p=>`${MONTHS[p.value[0]]}: <b>${p.value[2]}</b> / 100`},
+    series:[{type:'heatmap',data:scores.map((v,k)=>({value:[k,0,v],itemStyle:{color:css(band(v).v),opacity:.25+.75*(v/100),borderColor:k+1===m?css('--ink'):css('--card'),borderWidth:k+1===m?2:3,borderRadius:8}})),
+      label:{show:true,color:css('--ink'),fontFamily:css('--font'),fontSize:12,fontWeight:600,formatter:p=>p.value[2]}}]},true);
+  // nearby list
+  near.sort((a,b)=>(inWin(b.month,m)-inWin(a.month,m))||b.date.localeCompare(a.date));
+  document.getElementById('near-sub').textContent=`${near.length} within ${RADIUS} km since 2000 · same-season first`;
+  document.getElementById('near').innerHTML=near.length?near.map(i=>`<div class="inc"><div class="ico" style="border-color:${injColor(i.injury)};background:color-mix(in srgb,${injColor(i.injury)} 14%,transparent)">${img(MODE_EMO[i.mode],'')}${isWhite(i)?'':`<img class="sp" src="${EMO(spEmo(i))}" alt="">`}</div>
+     <div><div class="t"><span class="num">${i.date}</span> · ${MODEL[i.mode]}${inWin(i.month,m)?'<span class="tag">same season</span>':''}</div><div class="m"><span style="color:${injColor(i.injury)}">${INJL[i.injury]}</span> · ${spLabel(i)} · ${i.location}</div></div>
+     <div class="d num">${i.dist.toFixed(0)} km</div></div>`).join(''):'<div class="sub" style="padding:8px 0">No recorded incidents within 40 km since 2000.</div>';
+  renderSeason();
+  if(zoom) zoomTo(st.lat,st.lon,4.2); else layout();
+}
+
+/* ---------------- insight tiles ---------------- */
+const pct=n=>Math.round(n/INC.length*100);
+document.getElementById('tiles').innerHTML=[
+  ['warm',pct(INC.filter(i=>[6,7,8,9,10,11].includes(i.month)).length)+'%','of incidents since 2000 happened between June and November.'],
+  ['',pct(INC.filter(i=>i.mode==='Surfing / Boarding').length)+'%',`${img('1f3c4')} involved surfers and boarders, the largest group in the water.`],
+  ['calm',pct(INC.filter(i=>i.injury==='none').length)+'%','caused no injury. Many are investigative bumps on boards and kayaks.']
+].map(([c,b,p])=>`<div class="tile ${c}"><div class="big num">${b}</div><p>${p}</p></div>`).join('');
+
+/* follow OS theme changes live */
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawRings();update(false);});
+
+update(true);
+})();
+</script>
+</body>
+</html>
