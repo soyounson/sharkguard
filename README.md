@@ -2,7 +2,15 @@
 
 Check shark history and a seasonal risk score for a California beach before you surf, swim, dive or paddle.
 
-**Live site:** https://soyounson.github.io/sharkguard/
+### [▶ Open the live site: soyounson.github.io/sharkguard](https://soyounson.github.io/sharkguard/)
+
+[![SharkGuard: 3D white shark opener](docs/screenshots/hero.jpg)](https://soyounson.github.io/sharkguard/)
+
+| Dark mode: fall, real white shark tag tracks | Light mode: summer |
+|---|---|
+| [![Spot checker and relief map, dark mode](docs/screenshots/planner-dark.jpg)](https://soyounson.github.io/sharkguard/#check) | [![Spot checker and relief map, light mode](docs/screenshots/planner-light.jpg)](https://soyounson.github.io/sharkguard/#check) |
+
+<p align="center"><a href="https://soyounson.github.io/sharkguard/"><img src="docs/screenshots/mobile.jpg" width="300" alt="SharkGuard on a phone"></a></p>
 
 ## What it does
 
