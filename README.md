@@ -2,7 +2,7 @@
 
 Check shark history and a seasonal risk score for a California beach before you surf, swim, dive or paddle.
 
-**Live site:** (GitHub Pages link goes here once enabled)
+**Live site:** https://soyounson.github.io/sharkguard/
 
 ## What it does
 
