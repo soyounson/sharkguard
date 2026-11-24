@@ -58,4 +58,8 @@ Run locally with any static server, for example `python3 -m http.server`, then o
 - Emoji: Twemoji, CC BY 4.0. Shark group icons are recolored Twemoji.
 - Libraries: D3, Apache ECharts, three.js.
 
+## License
+
+Code is MIT and the original text, maps and screenshots are CC BY 4.0 (see [LICENSE](LICENSE)). The data and images listed above keep their own terms.
+
 **For reference only.** This site shows historical records and general seasonal patterns. It does not predict where sharks are now and does not guarantee anyone's safety. Always follow local beach postings and lifeguard advice.
